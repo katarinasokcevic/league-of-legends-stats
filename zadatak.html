@@ -1,0 +1,132 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+  <style>
+    svg {
+      z-index: 1;
+    }
+
+    body {
+      text-align: center;
+    }
+
+    #stats {
+      max-width: 605px;
+      margin: 0 auto;
+    }
+
+    #tooltip {
+      z-index: 2;
+      border-radius: 5px;
+      border: 2px solid #000;
+      background: rgba(255, 255, 255, 0.7);
+      padding: 5px;
+      position: absolute;
+      visibility: hidden;
+    }
+  </style>
+  <script src="https://d3js.org/d3.v3.min.js"></script>
+</head>
+
+<body>
+  <h1>League of Legends Stats</h1>
+  <div id='selectForm'>
+    Choose team:
+    <script>
+      var options = ["TSM", "C9", "DIG", "CST"];
+
+      var select = d3.select("#selectForm")
+        .append("select");
+
+      select.selectAll("option")
+        .data(options)
+        .enter()
+        .append("option")
+        .text(function (d) { return d; });
+
+      select.on("change", function () {
+        var selectedOption = d3.select(this).property("value");
+        console.log("Selected option: " + selectedOption);
+      });
+    </script>
+
+  </div>
+  <div id='stats'>
+    <div id="tooltip">placeholder</div>
+    <script>
+      const imageUrl = 'download.png';
+
+      var svg = d3.select("#stats")
+        .append("svg")
+        .attr("width", "602")
+        .attr("height", "576");
+      svg.append('svg:image')
+        .attr('xlink:href', imageUrl)
+        .attr("width", 602)
+        .attr("height", 576)
+        .attr("x", 0)
+        .attr("y", 0);
+
+      var g = svg.append("g")
+        .attr("transform", function (d, i) {
+          return "translate(0,0)";
+        });
+
+
+
+      const titleText = "";
+
+      svg.append('text')
+        .text(titleText)
+        .attr('x', '50%')
+        .attr('y', '2%')
+        .attr('text-anchor', 'middle')
+        .attr('dominant-baseline', 'hanging')
+        .attr('font-size', '3em')
+        .attr('font-weight', 'bold');
+
+      var circleCoords = [
+        { "name": "Top", "cx": 55, "cy": 240 },
+        { "name": "Mid", "cx": 250, "cy": 340 },
+        { "name": "Jungle", "cx": 120, "cy": 280 },
+        { "name": "Support", "cx": 400, "cy": 500 },
+        { "name": "ADC", "cx": 500, "cy": 500 }
+      ];
+
+      const tooltip = d3.select("#tooltip");
+      d3.json("timovi.json")
+
+      svg.selectAll("circle")
+        .data(circleCoords)
+        .enter().append("circle")
+        .attr("cx", function (d) { return d.cx; })
+        .attr("cy", function (d) { return d.cy; })
+        .attr("r", 20)
+        .style("fill", "red")
+        .on("mouseover", function (d) {
+          console.log(d.name);
+          tooltip.style("visibility", "visible")
+            .html("Position is: " + d.name + "<br>Player playing: " + d.player);
+        })
+        .on("mousemove", function (d) {
+          tooltip.style("top", d3.event.pageY - 30 + "px")
+            .style("left", d3.event.pageX + 10 + "px");
+        })
+        .on("mouseout", function () {
+          tooltip.style("visibility", "hidden");
+        });
+      ;
+
+      d3.json("timovi.json", function (error, data) {
+        console.log(error);
+        console.log(data);
+      });
+
+
+
+    </script>
+  </div>
+</body>
+
+</html>
