@@ -1,0 +1,539 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+  <style>
+    svg {
+      z-index: 1;
+    }
+
+    body {
+      text-align: center;
+      background: rgb(63, 168, 251);
+      background: linear-gradient(90deg, rgba(63, 168, 251, 0.3701855742296919) 0%, rgba(249, 91, 123, 0.31416316526610644) 100%);
+    }
+
+    #container {
+      display: flex;
+    }
+
+    .column {
+      flex: 1;
+    }
+
+    #stats {
+      max-width: 605px;
+      margin: 0 auto;
+    }
+
+    #tooltip {
+      z-index: 2;
+      border-radius: 5px;
+      border: 2px solid #000;
+      background: rgba(255, 255, 255, 0.7);
+      padding: 5px;
+      position: absolute;
+      visibility: hidden;
+    }
+
+    #power-gauge g.arc {
+      fill: steelblue;
+    }
+
+    #power-gauge g.pointer {
+      fill: #e85116;
+      stroke: #b64011;
+    }
+
+    #power-gauge g.label text {
+      text-anchor: middle;
+      font-size: 14px;
+      font-weight: bold;
+      fill: #666;
+    }
+  </style>
+  <script src="https://d3js.org/d3.v4.min.js"></script>
+  <script src="gauge.js"></script>
+</head>
+
+<body>
+  <title>League of Legends team stats</title>
+  <h1>League of Legends competitive team stats</h1>
+  <div id='selectForm'>
+    Choose team:
+    <script>
+      var options = ["DIG", "TSM", "T8", "C9"];
+      var selectedTeam = options[0];
+
+      var select = d3.select("#selectForm")
+        .append("select");
+
+      select.selectAll("option")
+        .data(options)
+        .enter()
+        .append("option")
+        .text(function (d) { return d; });
+
+      select.on("change", function () {
+        selectedTeam = d3.select(this).property("value");
+        console.log("Selected option: " + selectedTeam);
+        updateGraphs(selectedTeam);
+      });
+    </script>
+
+  </div>
+  <div id="container">
+    <div class="column">
+      <h2>Win Rate</h2>
+      <svg width="350" height="350" id="win_rate"></svg>
+      <h2>Game duration</h2>
+      <div id="game_duration"></div>
+    </div>
+    <div class="column">
+      <div id='stats'>
+        <div id="tooltip">placeholder</div>
+        <script>
+          const imageUrl = 'download.png';
+          var teamData = []; // holds teamData
+          var teamPosition = new Map();
+
+          var svg = d3.select("#stats")
+            .append("svg")
+            .attr("width", "602")
+            .attr("height", "576");
+          svg.append('svg:image')
+            .attr('xlink:href', imageUrl)
+            .attr("width", 602)
+            .attr("height", 576)
+            .attr("x", 0)
+            .attr("y", 0);
+
+          var g = svg.append("g")
+            .attr("transform", function (d, i) {
+              return "translate(0,0)";
+            });
+
+          var circleCoords = [
+            { "name": "Top", "cx": 55, "cy": 220 },
+            { "name": "Middle", "cx": 250, "cy": 340 },
+            { "name": "Jungle", "cx": 120, "cy": 280 },
+            { "name": "Support", "cx": 300, "cy": 520 },
+            { "name": "ADC", "cx": 450, "cy": 510 }
+          ];
+
+          const tooltip = d3.select("#tooltip");
+
+          svg.selectAll("circle")
+            .data(circleCoords)
+            .enter().append("circle")
+            .attr("cx", function (d) { return d.cx; })
+            .attr("cy", function (d) { return d.cy; })
+            .attr("r", 20)
+            .style("fill", "red")
+            .on("mouseover", function (d) {
+              const player = teamPosition.get(selectedTeam)[d.name];
+              tooltip.style("visibility", "visible")
+                .html("Position: " + d.name + "<br>Player playing: " + player);
+              d3.select(this).style("cursor", "pointer");
+            })
+            .on("mousemove", function (d) {
+              tooltip.style("top", d3.event.pageY - 30 + "px")
+                .style("left", d3.event.pageX + 10 + "px");
+            })
+            .on("mouseout", function () {
+              tooltip.style("visibility", "hidden");
+            })
+            .on("click", function (d) {
+              const player = teamPosition.get(selectedTeam)[d.name];
+              updatePlayer(player, d.name);
+            });
+          ;
+
+        </script>
+      </div>
+    </div>
+    <div class="column" id="playerStat">
+      <h2 id="player_name"></h2>
+      <div id="champs"></div>
+      <div id="gold"></div>
+    </div>
+  </div>
+
+  <script>
+    function winRate(selectedTeam) {
+      const svg = d3.select("#win_rate"),
+        width = svg.attr("width"),
+        height = svg.attr("height"),
+        radius = 150;
+
+      let numb = teamData.reduce((sum, d) => {
+        if (d.blueTeamTag === selectedTeam && d.bResult === "1") {
+          return sum + 1;
+        } else {
+          return sum;
+        }
+      }, 0);
+
+      var data = [{ name: "Win", share: numb },
+      { name: "Lose", share: 10 - numb },];
+
+      var g = svg.append("g")
+        .attr("transform", "translate(" + width / 2 + "," + height / 2 + ")");
+
+      var ordScale = d3.scaleOrdinal()
+        .domain(data)
+        .range(['#ffd384', '#fbaccc', '#1BB11B', '#d3e0ea', '#fa7f72']);
+
+      var pie = d3.pie().value(function (d) {
+        return d.share;
+      });
+
+      var arc = g.selectAll("arc")
+        .data(pie(data))
+        .enter();
+
+      var path = d3.arc()
+        .outerRadius(radius)
+        .innerRadius(0);
+
+      arc.append("path")
+        .attr("d", path)
+        .attr("fill", function (d) { return ordScale(d.data.name); });
+
+      var label = d3.arc()
+        .outerRadius(radius)
+        .innerRadius(0);
+
+      arc.append("text")
+        .attr("transform", function (d) {
+          return "translate(" + label.centroid(d) + ")";
+        })
+        .text(function (d) { return d.data.name; })
+        .style("font-family", "arial")
+        .style("font-size", 17);
+    }
+
+    var powerGauge = gauge('#game_duration', {
+      size: 300,
+      clipWidth: 300,
+      clipHeight: 300,
+      ringWidth: 60,
+      maxValue: 60,
+      transitionMs: 4000,
+      majorTicks: 6,
+    });
+    powerGauge.render();
+
+    function gameDuration(selectedTeam) {
+      const filteredData = teamData.filter(d => d.blueTeamTag === selectedTeam);
+      const totalGameLength = filteredData.reduce((sum, d) => sum + parseInt(d.gamelength), 0);
+      const averageTime = totalGameLength / filteredData.length;
+      powerGauge.update(averageTime);
+    }
+
+    function updateGraphs(selectedTeam) {
+      winRate(selectedTeam);
+      gameDuration(selectedTeam);
+      updatePlayer(null);
+    }
+
+    function updatePlayer(player, position = null) {
+      const champsDiv = d3.select("#champs");
+      const goldDiv = d3.select("#gold");
+
+      champsDiv.selectAll("*").remove();
+      goldDiv.selectAll("*").remove();
+
+      if (player == null) {
+        // Delete right stats
+        d3.select("#player_name").html("");
+        d3.select("#gold").html("");
+        return;
+      }
+
+      d3.select("#player_name").html("Player: " + player);
+
+      champsDiv.append("h2").html("Champions picked in last 10 games");
+      champs(player, position);
+
+      goldDiv.append("h2").html("Gold through the match");
+      gold(player, position);
+
+    }
+
+    function champs(player, position) {
+      console.log(player, position);
+      const width = 400;
+      const height = 300;
+      const margin = { top: 10, right: 30, bottom: 40, left: 100 };
+      var svg = d3.select("#champs")
+        .append("svg")
+        .attr("width", width + margin.left + margin.right)
+        .attr("height", height + margin.top + margin.bottom)
+        .append("g")
+        .attr("transform",
+          "translate(" + margin.left + "," + margin.top + ")");
+      const filteredData = teamData.filter(d => d["blue" + position] === player);
+      const champs = new Map();
+
+      filteredData.forEach(function (d) {
+        champNameKey = "blue" + position + "Champ";
+        if (champs.has(d[champNameKey])) {
+          champs.set(d[champNameKey], champs.get(d[champNameKey]) + 1);
+        } else {
+          champs.set(d[champNameKey], 1);
+        }
+      });
+
+      d3Data = [];
+      for (const [key, value] of champs.entries()) {
+        d3Data.push({ "name": key, "value": value });
+      }
+
+
+      // sort data
+      d3Data.sort(function (b, a) {
+        return a.value - b.value;
+      });
+
+
+      // Add X axis
+      var x = d3.scaleLinear()
+        .domain([0, d3.max(d3Data, function (d) { return d.value; })])
+        .range([0, width]);
+      svg.append("g")
+        .attr("transform", "translate(0," + height + ")")
+        .call(d3.axisBottom(x).ticks(d3.max(d3Data, function (d) { return d.value; })))
+        .selectAll("text")
+        .attr("transform", "translate(3,0)rotate(0)")
+        .style("text-anchor", "end")
+        .style("font-size", 15);
+
+      // Y axis
+      var y = d3.scaleBand()
+        .range([0, height])
+        .domain(d3Data.map(function (d) { return d.name; }))
+        .padding(1);
+      svg.append("g")
+        .style("font-size", 15)
+        .call(d3.axisLeft(y))
+
+      // Lines
+      svg.selectAll("myline")
+        .data(d3Data)
+        .enter()
+        .append("line")
+        .attr("x1", x(0))
+        .attr("x2", x(0))
+        .attr("y1", function (d) { return y(d.name); })
+        .attr("y2", function (d) { return y(d.name); })
+        .attr("stroke", "grey")
+
+      // Circles -> start at X=0
+      svg.selectAll("mycircle")
+        .data(d3Data)
+        .enter()
+        .append("circle")
+        .attr("cx", x(0))
+        .attr("cy", function (d) { return y(d.name); })
+        .attr("r", "7")
+        .style("fill", "#69b3a2")
+        .attr("stroke", "black")
+
+      // Change the X coordinates of line and circle
+      svg.selectAll("circle")
+        .transition()
+        .duration(2000)
+        .attr("cx", function (d) { return x(d.value); })
+
+      svg.selectAll("line")
+        .transition()
+        .duration(2000)
+        .attr("x1", function (d) { return x(d.value); })
+
+      // Label X
+      svg.append("text")
+        .attr("class", "x label")
+        .attr("text-anchor", "end")
+        .attr("x", width)
+        .attr("y", height - 6)
+        .text("Quantity");
+
+      svg.append("text")
+        .attr("class", "y label")
+        .attr("text-anchor", "end")
+        .attr("y", 10)
+        .attr("x", 8)
+        .attr("dy", ".65em")
+        .attr("transform", "rotate(-90)")
+        .text("Name");
+    }
+
+    function gold(player, position) {
+      console.log(player, position);
+      const width = 400;
+      const height = 300;
+      const margin = { top: 10, right: 30, bottom: 40, left: 100 };
+      var svg = d3.select("#gold")
+        .append("svg")
+        .attr("width", width + margin.left + margin.right)
+        .attr("height", height + margin.top + margin.bottom)
+        .append("g")
+        .attr("transform",
+          "translate(" + margin.left + "," + margin.top + ")");
+      var filteredData = teamData.filter(d => d["blue" + position] === player);
+
+      const keyName = "goldblue" + position;
+      var goldOverTime = JSON.parse(filteredData[0][keyName]);
+      var time = d3.range(51);
+      var gold = new Map();
+
+      for (var i = 0; i <= goldOverTime.length; i++) {
+        gold.set(goldOverTime[i], time[i]);
+      }
+
+      console.log(gold);
+      var d3Data = [];
+      for (const [key, value] of gold.entries()) {
+        d3Data.push({ "gold": key, "minutes": value });
+      }
+
+      var x = d3.scaleLinear()
+        .domain(d3.extent(d3Data, function (d) { return d.minutes; }))
+        .range([0, width]);
+      xAxis = svg.append("g")
+        .attr("transform", "translate(0," + height + ")")
+        .style("font-size", 15)
+        .call(d3.axisBottom(x));
+
+      // Add Y axis
+      var y = d3.scaleLinear()
+        .domain([0, d3.max(d3Data, function (d) { return d.gold; })])
+        .range([height, 0]);
+      yAxis = svg.append("g")
+        .style("font-size", 15)
+        .call(d3.axisLeft(y));
+
+      // Add a clipPath: everything out of this area won't be drawn.
+      var clip = svg.append("defs").append("svg:clipPath")
+        .attr("id", "clip")
+        .append("svg:rect")
+        .attr("width", width)
+        .attr("height", height)
+        .attr("x", 0)
+        .attr("y", 0);
+
+      // Add brushing
+      var brush = d3.brushX()                   // Add the brush feature using the d3.brush function
+        .extent([[0, 0], [width, height]])  // initialise the brush area: start at 0,0 and finishes at width,height: it means I select the whole graph area
+        .on("end", updateChart)               // Each time the brush selection changes, trigger the 'updateChart' function
+
+      // Create the line variable: where both the line and the brush take place
+      var line = svg.append('g')
+        .attr("clip-path", "url(#clip)")
+
+      // Add the line
+      line.append("path")
+        .datum(d3Data)
+        .attr("class", "line")  // I add the class line to be able to modify this line later on.
+        .attr("fill", "none")
+        .attr("stroke", "steelblue")
+        .attr("stroke-width", 3)
+        .attr("d", d3.line()
+          .x(function (d) { return x(d.minutes) })
+          .y(function (d) { return y(d.gold) })
+        )
+
+      svg.append("text")
+        .attr("class", "x label")
+        .attr("text-anchor", "end")
+        .attr("x", width)
+        .attr("y", height - 6)
+        .text("Minute");
+
+      svg.append("text")
+        .attr("class", "y label")
+        .attr("text-anchor", "end")
+        .attr("y", 10)
+        .attr("x", 8)
+        .attr("dy", ".65em")
+        .attr("transform", "rotate(-90)")
+        .text("Gold");
+
+      // Add the brushing
+      line
+        .append("g")
+        .attr("class", "brush")
+        .call(brush);
+
+      // A function that set idleTimeOut to null
+      var idleTimeout
+      function idled() { idleTimeout = null; }
+
+      // A function that update the chart for given boundaries
+      function updateChart() {
+
+        // What are the selected boundaries?
+        extent = d3.event.selection
+
+        // If no selection, back to initial coordinate. Otherwise, update X axis domain
+        if (!extent) {
+          if (!idleTimeout) return idleTimeout = setTimeout(idled, 350); // This allows to wait a little bit
+          x.domain([4, 8])
+        } else {
+          x.domain([x.invert(extent[0]), x.invert(extent[1])])
+          line.select(".brush").call(brush.move, null) // This remove the grey brush area as soon as the selection has been done
+        }
+
+        // Update axis and line position
+        xAxis.transition().duration(1000).call(d3.axisBottom(x))
+        line
+          .select('.line')
+          .transition()
+          .duration(1000)
+          .attr("d", d3.line()
+            .x(function (d) { return x(d.minutes) })
+            .y(function (d) { return y(d.gold) })
+          )
+      }
+
+      // If user double click, reinitialize the chart
+      svg.on("dblclick", function () {
+        x.domain(d3.extent(d3Data, function (d) { return d.minutes; }))
+        xAxis.transition().call(d3.axisBottom(x))
+        line
+          .select('.line')
+          .transition()
+          .attr("d", d3.line()
+            .x(function (d) { return x(d.minutes) })
+            .y(function (d) { return y(d.gold) })
+          )
+      });
+
+    }
+
+    // initialize
+    d3.json("timovi.json", function (error, data) {
+      if (error) {
+        alert(error);
+      }
+      teamData = data;
+      for (const game of teamData) {
+        if (teamPosition.has(game["blueTeamTag"])) {
+          continue;
+        }
+        teamPosition.set(game["blueTeamTag"], {
+          "Top": game["blueTop"],
+          "Support": game["blueSupport"],
+          "ADC": game["blueADC"],
+          "Middle": game["blueMiddle"],
+          "Jungle": game["blueJungle"],
+        });
+      }
+      updateGraphs(options[0]);
+    });
+
+  </script>
+</body>
+
+</html>
